@@ -22,9 +22,26 @@ cv::Mat LoadDepthImage(const std::string &path, const size_t width = 640,
   return mat;
 }
 
+cv::Mat convertNormalToU16(const cv::Mat &normal_map) {
+    cv::Mat normal_res(normal_map.size(), CV_8UC3);
+    for (int r = 0; r < normal_map.rows; ++r) {
+        for (int c = 0; c < normal_map.cols; ++c) {
+            cv::Vec3f normal_vec = normal_map.at<cv::Vec3f>(r, c);
+            normal_vec[1] = normal_vec[1]; // convert from cv to opengl
+            normal_vec[2] = normal_vec[2];
+            float theta = atan2(normal_vec[0], normal_vec[2]);
+            theta *= (180.0/3.141592653589793238463);
+            float phi = asin(normal_vec[1]);
+            phi *= (180.0/3.141592653589793238463);
+            normal_res.at<cv::Vec3b>(r,c) = cv::Vec3b(round(theta) + 128, round(phi) + 128, 0);
+        }
+    }
+    return normal_res;
+}
+
 int main(){
   int n; //the number of depth images.
-  std::string param = "../data/android/params.txt";
+  std::string param = "../data/android/params_2.txt";
   FILE *f = fopen(param.c_str(), "r");
 
   cv::Matx33d camera(0,0,0,0,0,0,0,0,1);
@@ -32,7 +49,16 @@ int main(){
          &camera(1,1), &camera(0, 2), &camera(1,2), &n);
   camera(0,2)--;  camera(1,2)--;
 
-  auto depth_image = LoadDepthImage("../data/android/depth/000001.bin", 640, 480);
+  // auto depth_image = LoadDepthImage("../data/android/depth/000001.bin", 640, 480);
+  cv::Mat depth_image = cv::imread("/mnt/hgfs/vmshare/depth_filtered/demo_006-depth_raw_gauss.png", cv::IMREAD_UNCHANGED);
+  std::cout << "xxxxxxxxxxxxxxxxxxxxxxxxxx" << std::endl;
+  cv::imshow("depth", depth_image);
+  // depth_image.convertTo(depth_image, CV_32FC1, -1);
+  double min, max;
+  cv::minMaxIdx(depth_image, &min, &max);
+  std::cout << min << " " << max << std::endl;
+  std::cout << depth_image.type() << std::endl;
+  std::cout << depth_image.channels() << std::endl;
   cv::Mat_<float> s(depth_image);
   for (auto &it : s){
     if (fabs(it) < 1e-7){ //If the value equals 0, the point is infinite
@@ -41,6 +67,7 @@ int main(){
   }
 
   //convert depth image to range image. watch out the problem of bgr and rgb.
+  cv::Mat range_image, result;
   cv::rgbd::depthTo3d(depth_image, camera, range_image);
   std::vector<cv::Mat> matpart(3);
   cv::split(range_image, matpart);
@@ -49,21 +76,27 @@ int main(){
   /*******************the core code*********************/
   TFTN(range_image, camera, R_MEANS_4, &result);
   /*****************************************/
-
-  output.create(result.rows, result.cols, CV_16UC3);
+  cv::Mat showNormal;
+  cv::Mat output;
   for (int i = 0; i < result.rows; ++ i){
     for (int j = 0; j < result.cols; ++ j){
       result.at<cv::Vec3f>(i, j) = result.at<cv::Vec3f>(i, j) / cv::norm(result.at<cv::Vec3f>(i, j));
-      if (result.at<cv::Vec3f>(i, j)[2] < 0) {
-        result.at<cv::Vec3f>(i, j) = -result.at<cv::Vec3f>(i, j);
+      if (result.at<cv::Vec3f>(i, j)[2] > 0) {
+        result.at<cv::Vec3f>(i, j)[2]  = -result.at<cv::Vec3f>(i, j)[2];
       }
-      output.at<cv::Vec3w>(i, j)[2] = (result.at<cv::Vec3f>(i, j)[0]+1)*(65535/2.0);
-      output.at<cv::Vec3w>(i, j)[1] = (result.at<cv::Vec3f>(i, j)[1]+1)*(65535/2.0);
-      output.at<cv::Vec3w>(i, j)[0] = (result.at<cv::Vec3f>(i, j)[2]+1)*(65535/2.0);
+      result.at<cv::Vec3f>(i,j)[1] *= -1;
+      result.at<cv::Vec3f>(i,j)[2] *= -1;
     }
   }
-  cv::imshow("result", output);
-  cv::waitKey(-1);
+  result.convertTo(showNormal, CV_8UC3, 128.0, 128);
+  cv::cvtColor(showNormal, showNormal, cv::COLOR_RGB2BGR);
+  cv::imshow("normal",showNormal);
+
+  cv::Mat uv_out = convertNormalToU16(result);
+  cv::imshow("result", uv_out);
+  cv::imwrite("/mnt/hgfs/vmshare/depth_filtered/006_normal.png", showNormal);
+  cv::imwrite("/mnt/hgfs/vmshare/depth_filtered/006_normal_uv.png", uv_out);
+  cv::waitKey();
   return 0;
 }
 
