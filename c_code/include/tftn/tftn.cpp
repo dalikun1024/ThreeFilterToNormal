@@ -251,7 +251,7 @@ static inline void TFTN_MEAN(const Vec4f &kernal_x, const Vec4f &kernal_y,
 
     int ONE_MINUS_COL = COL - 1;
     int v(2);
-    const Vec4f ZERO(1e5);
+    const Vec4f ZERO(0);
     const Vec4f NEG_INF(-1e5);
     const float mul[5]={0,1,1/2.0,1/3.0,1/4.0};
 #define UPDATE_IDX idx++, idx_m1++, idx_p1++, idx_o++

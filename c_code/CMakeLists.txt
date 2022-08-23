@@ -27,7 +27,7 @@ find_package(Boost COMPONENTS system thread program_options)
 
 
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-# set(CMAKE_CXX_FLAGS_RELEASE "-march=native -mfma -msse2 -msse3 -msse4")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -mfma -msse2 -msse3 -msse4")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -march=native -mfma -msse2 -msse3 -msse4")
 
 
